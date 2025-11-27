@@ -109,6 +109,12 @@
             class="input w-40"
           />
         </div>
+        <select v-model="filterDevice" class="input w-48">
+          <option value="all">All Devices</option>
+          <option v-for="device in devices" :key="device.id" :value="device.id">
+            {{ device.name }}
+          </option>
+        </select>
         <select v-model="filterStatus" class="input w-48">
           <option value="all">All Records</option>
           <option value="synced">Synced</option>
@@ -137,6 +143,9 @@
                 Employee
               </th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Device
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Type
               </th>
               <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -161,6 +170,9 @@
               <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-sm font-medium text-gray-900">{{ entry.employee_name }}</div>
                 <div class="text-sm text-gray-500">{{ entry.employee_code || 'N/A' }}</div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                {{ entry.device_name || '-' }}
               </td>
               <td class="px-6 py-4 whitespace-nowrap">
                 <span
@@ -268,16 +280,18 @@ import { useToast } from '../composables/useToast'
 const { success, error } = useToast()
 
 const timesheets = ref([])
+const devices = ref([])
 const loading = ref(false)
 const searchQuery = ref('')
 const filterStatus = ref('pending')
+const filterDevice = ref('all')
 const filterDateFrom = ref('')
 const filterDateTo = ref('')
 const currentPage = ref(1)
 const pageSize = 50
 
 // Reset to page 1 when any filter changes
-watch([searchQuery, filterStatus, filterDateFrom, filterDateTo], () => {
+watch([searchQuery, filterStatus, filterDevice, filterDateFrom, filterDateTo], () => {
   currentPage.value = 1
 })
 
@@ -343,6 +357,11 @@ const filteredTimesheets = computed(() => {
     filtered = filtered.filter(t => t.date <= filterDateTo.value)
   }
 
+  // Filter by device
+  if (filterDevice.value !== 'all') {
+    filtered = filtered.filter(t => t.device_id === filterDevice.value)
+  }
+
   // Filter by status
   if (filterStatus.value === 'synced') {
     filtered = filtered.filter(t => t.backend_timesheet_id !== null)
@@ -378,8 +397,13 @@ const paginatedTimesheets = computed(() => {
 const loadData = async () => {
   loading.value = true
   try {
+    // Load timesheets
     const result = await bridgeService.getAllTimesheets(5000, 0)
     timesheets.value = result.data
+
+    // Load devices for filter dropdown
+    const devicesResult = await bridgeService.getDevices()
+    devices.value = devicesResult.data || []
   } catch (err) {
     console.error('Error loading timesheets:', err)
     error('Failed to load timesheets')

@@ -154,10 +154,12 @@ class Database:
                     enabled BOOLEAN DEFAULT 1,
                     last_pull_at DATETIME,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    deleted_at DATETIME
                 )
             """)
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_device_enabled ON device(enabled)")
+            # Note: idx_device_deleted_at and idx_device_unique_ip_active are created after migration adds deleted_at column
 
             # API configuration table
             cursor.execute("""
@@ -264,6 +266,16 @@ class Database:
                 cursor.execute("CREATE INDEX IF NOT EXISTS idx_timesheet_device_id ON timesheet(device_id)")
             except:
                 pass
+
+            # Add deleted_at column to device table (for soft delete)
+            try:
+                cursor.execute("ALTER TABLE device ADD COLUMN deleted_at DATETIME")
+            except:
+                pass  # Column already exists
+
+            # Create indexes for deleted_at (after column exists)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_device_deleted_at ON device(deleted_at)")
+            cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_device_unique_ip_active ON device(ip) WHERE deleted_at IS NULL")
 
             # Migrate existing device config from api_config to device table
             cursor.execute("SELECT COUNT(*) as count FROM device")
@@ -676,12 +688,13 @@ class Database:
     # ==================== DEVICE METHODS ====================
 
     def get_devices(self):
-        """Get all devices"""
+        """Get all active (non-deleted) devices"""
         conn = self.get_connection()
         cursor = conn.cursor()
         try:
             cursor.execute("""
                 SELECT * FROM device
+                WHERE deleted_at IS NULL
                 ORDER BY created_at ASC
             """)
             return [dict(row) for row in cursor.fetchall()]
@@ -689,13 +702,13 @@ class Database:
             conn.close()
 
     def get_enabled_devices(self):
-        """Get all enabled devices"""
+        """Get all enabled (and non-deleted) devices"""
         conn = self.get_connection()
         cursor = conn.cursor()
         try:
             cursor.execute("""
                 SELECT * FROM device
-                WHERE enabled = 1
+                WHERE enabled = 1 AND deleted_at IS NULL
                 ORDER BY created_at ASC
             """)
             return [dict(row) for row in cursor.fetchall()]
@@ -724,6 +737,11 @@ class Database:
             """, (name, ip, port))
             conn.commit()
             return cursor.lastrowid
+        except sqlite3.IntegrityError as e:
+            conn.rollback()
+            if 'UNIQUE constraint failed' in str(e) or 'idx_device_unique_ip_active' in str(e):
+                raise Exception(f"A device with IP '{ip}' already exists")
+            raise
         except Exception as e:
             conn.rollback()
             logger.error(f"Error adding device: {e}")
@@ -762,6 +780,11 @@ class Database:
             cursor.execute(query, values)
             conn.commit()
             return cursor.rowcount > 0
+        except sqlite3.IntegrityError as e:
+            conn.rollback()
+            if 'UNIQUE constraint failed' in str(e) or 'idx_device_unique_ip_active' in str(e):
+                raise Exception(f"A device with IP '{ip}' already exists")
+            raise
         except Exception as e:
             conn.rollback()
             logger.error(f"Error updating device: {e}")
@@ -770,11 +793,15 @@ class Database:
             conn.close()
 
     def delete_device(self, device_id):
-        """Delete a device"""
+        """Soft delete a device (sets deleted_at timestamp)"""
         conn = self.get_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute("DELETE FROM device WHERE id = ?", (device_id,))
+            cursor.execute("""
+                UPDATE device
+                SET deleted_at = ?, updated_at = ?
+                WHERE id = ? AND deleted_at IS NULL
+            """, (datetime.now(), datetime.now(), device_id))
             conn.commit()
             return cursor.rowcount > 0
         except Exception as e:

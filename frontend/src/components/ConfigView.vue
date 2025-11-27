@@ -283,21 +283,6 @@
       </div>
     </div>
 
-    <!-- Save Button -->
-    <div class="flex justify-end gap-4">
-      <button @click="loadConfig" class="btn btn-secondary">
-        Reset
-      </button>
-      <button
-        @click="saveConfig"
-        :disabled="saving"
-        class="btn btn-primary"
-      >
-        <span v-if="!saving">Save Configuration</span>
-        <span v-else>Saving...</span>
-      </button>
-    </div>
-
     <!-- System Logs Section -->
     <div class="card">
       <h2 class="text-xl font-semibold mb-4 flex items-center gap-2">
@@ -365,7 +350,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import bridgeService from '../services/bridge'
 import { useToast } from '../composables/useToast'
 
@@ -379,6 +364,22 @@ const form = ref({
 })
 
 const saving = ref(false)
+const configLoaded = ref(false)  // Prevent auto-save on initial load
+
+// Debounce helper
+let saveTimeout = null
+const debouncedSave = () => {
+  if (!configLoaded.value) return  // Don't save during initial load
+
+  if (saveTimeout) clearTimeout(saveTimeout)
+  saveTimeout = setTimeout(async () => {
+    await saveConfig()
+  }, 500)
+}
+
+// Auto-save when intervals change
+watch(() => form.value.pull_interval_minutes, debouncedSave)
+watch(() => form.value.push_interval_minutes, debouncedSave)
 
 // YAHSHUA login state
 const pushLoggedIn = ref(false)
@@ -412,6 +413,7 @@ const logInfo = ref(null)
 const loadingLog = ref(false)
 
 const loadConfig = async () => {
+  configLoaded.value = false  // Prevent auto-save during load
   try {
     const result = await bridgeService.getApiConfig()
     if (result.data) {
@@ -433,6 +435,11 @@ const loadConfig = async () => {
   } catch (err) {
     console.error('Error loading config:', err)
     error('Failed to load configuration')
+  } finally {
+    // Allow auto-save after config is loaded
+    setTimeout(() => {
+      configLoaded.value = true
+    }, 100)
   }
 }
 
@@ -451,10 +458,10 @@ const saveConfig = async () => {
   saving.value = true
   try {
     await bridgeService.updateApiConfig(form.value)
-    success('Configuration saved successfully')
+    info('Settings saved')
   } catch (err) {
     console.error('Error saving config:', err)
-    error('Failed to save configuration')
+    error('Failed to save settings')
   } finally {
     saving.value = false
   }

@@ -6,19 +6,31 @@ set -e
 APP_NAME="San Beda Integration"
 VERSION="${1:-1.0.0}"  # Accept version as argument, default to 1.0.0
 DMG_NAME="SanBedaIntegration-v${VERSION}.dmg"
-APP_PATH="../dist/${APP_NAME}.app"
-DMG_PATH="../dist/${DMG_NAME}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+
+# Check for app in multiple locations (CI vs local build)
+if [ -d "${PROJECT_DIR}/dist/${APP_NAME}.app" ]; then
+    # CI build: app is in project root /dist/
+    APP_PATH="${PROJECT_DIR}/dist/${APP_NAME}.app"
+    DMG_PATH="${PROJECT_DIR}/dist/${DMG_NAME}"
+elif [ -d "${SCRIPT_DIR}/dist/${APP_NAME}.app" ]; then
+    # Local build: app is in backend/dist/
+    APP_PATH="${SCRIPT_DIR}/dist/${APP_NAME}.app"
+    DMG_PATH="${SCRIPT_DIR}/dist/${DMG_NAME}"
+else
+    echo "Error: Application not found"
+    echo "Searched in:"
+    echo "  - ${PROJECT_DIR}/dist/${APP_NAME}.app"
+    echo "  - ${SCRIPT_DIR}/dist/${APP_NAME}.app"
+    echo "Please run PyInstaller first"
+    exit 1
+fi
 
 echo "========================================="
 echo "Creating DMG Installer"
 echo "========================================="
-
-# Check if app exists
-if [ ! -d "$APP_PATH" ]; then
-    echo "Error: Application not found at $APP_PATH"
-    echo "Please run build_release.sh first"
-    exit 1
-fi
+echo "App: $APP_PATH"
 
 # Remove old DMG if exists
 if [ -f "$DMG_PATH" ]; then

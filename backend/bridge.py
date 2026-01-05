@@ -408,15 +408,15 @@ class Bridge(QObject):
             logger.error(f"Error getting devices: {e}")
             return json.dumps({"success": False, "error": str(e)})
 
-    @pyqtSlot(str, str, int, int, result=str)
-    def addDevice(self, name, ip, port, comm_key):
+    @pyqtSlot(str, str, int, int, str, result=str)
+    def addDevice(self, name, ip, port, comm_key, branch_id):
         """Add a new ZKTeco device"""
         try:
             if not name or not ip:
                 return json.dumps({"success": False, "error": "Name and IP are required"})
 
-            device_id = self.database.add_device(name, ip, port or 4370, comm_key or 0)
-            logger.info(f"Added new device: {name} ({ip}:{port})")
+            device_id = self.database.add_device(name, ip, port or 4370, comm_key or 0, branch_id or None)
+            logger.info(f"Added new device: {name} ({ip}:{port}) branch_id={branch_id}")
 
             # Log the config change
             self.database.log_config_change(f"Added device: {name}")
@@ -430,8 +430,8 @@ class Bridge(QObject):
             logger.error(f"Error adding device: {e}")
             return json.dumps({"success": False, "error": str(e)})
 
-    @pyqtSlot(int, str, str, int, int, bool, result=str)
-    def updateDevice(self, device_id, name, ip, port, comm_key, enabled):
+    @pyqtSlot(int, str, str, int, int, str, bool, result=str)
+    def updateDevice(self, device_id, name, ip, port, comm_key, branch_id, enabled):
         """Update an existing device"""
         try:
             success = self.database.update_device(
@@ -440,6 +440,7 @@ class Bridge(QObject):
                 ip=ip if ip else None,
                 port=port if port else None,
                 comm_key=comm_key,
+                branch_id=branch_id,
                 enabled=enabled
             )
 

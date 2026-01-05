@@ -127,6 +127,7 @@
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">IP Address</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Port</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Branch ID</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Pull</th>
                 <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -134,7 +135,7 @@
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
               <tr v-if="devices.length === 0">
-                <td colspan="6" class="px-4 py-8 text-center text-gray-500">
+                <td colspan="7" class="px-4 py-8 text-center text-gray-500">
                   No devices configured. Click "Add Device" to get started.
                 </td>
               </tr>
@@ -147,6 +148,9 @@
                 </td>
                 <td class="px-4 py-3 whitespace-nowrap font-mono text-sm">
                   <span :class="{ 'text-gray-400': !device.enabled }">{{ device.port }}</span>
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap text-sm">
+                  <span :class="{ 'text-gray-400': !device.enabled }">{{ device.branch_id || '-' }}</span>
                 </td>
                 <td class="px-4 py-3 whitespace-nowrap">
                   <span v-if="device.enabled" class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
@@ -244,6 +248,16 @@
               class="input"
             />
             <p class="text-xs text-gray-500 mt-1">Leave as 0 if device has no password</p>
+          </div>
+          <div>
+            <label class="label">Branch ID</label>
+            <input
+              v-model="deviceForm.branch_id"
+              type="text"
+              placeholder="e.g., BRANCH001"
+              class="input"
+            />
+            <p class="text-xs text-gray-500 mt-1">Branch identifier for YAHSHUA Payroll (optional)</p>
           </div>
           <div v-if="editingDevice" class="flex items-center gap-2">
             <input
@@ -412,6 +426,7 @@ const deviceForm = ref({
   ip: '',
   port: 4370,
   comm_key: 0,
+  branch_id: '',
   enabled: true
 })
 
@@ -486,6 +501,7 @@ const openAddDeviceModal = () => {
     ip: '',
     port: 4370,
     comm_key: 0,
+    branch_id: '',
     enabled: true
   }
   showDeviceModal.value = true
@@ -498,6 +514,7 @@ const editDevice = (device) => {
     ip: device.ip,
     port: device.port,
     comm_key: device.comm_key || 0,
+    branch_id: device.branch_id || '',
     enabled: !!device.enabled
   }
   showDeviceModal.value = true
@@ -519,6 +536,7 @@ const saveDevice = async () => {
         deviceForm.value.ip,
         deviceForm.value.port,
         deviceForm.value.comm_key || 0,
+        deviceForm.value.branch_id || '',
         deviceForm.value.enabled
       )
       success('Device updated successfully')
@@ -528,7 +546,8 @@ const saveDevice = async () => {
         deviceForm.value.name,
         deviceForm.value.ip,
         deviceForm.value.port,
-        deviceForm.value.comm_key || 0
+        deviceForm.value.comm_key || 0,
+        deviceForm.value.branch_id || ''
       )
       success('Device added successfully')
     }

@@ -152,6 +152,7 @@ class Database:
                     ip TEXT NOT NULL,
                     port INTEGER DEFAULT 4370,
                     comm_key INTEGER DEFAULT 0,
+                    branch_id TEXT,
                     enabled BOOLEAN DEFAULT 1,
                     last_pull_at DATETIME,
                     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -280,6 +281,12 @@ class Database:
             except:
                 pass  # Column already exists
 
+            # Add branch_id column to device table (for YAHSHUA branch association)
+            try:
+                cursor.execute("ALTER TABLE device ADD COLUMN branch_id TEXT")
+            except:
+                pass  # Column already exists
+
             # Create indexes for deleted_at (after column exists)
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_device_deleted_at ON device(deleted_at)")
             cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_device_unique_ip_active ON device(ip) WHERE deleted_at IS NULL")
@@ -342,9 +349,10 @@ class Database:
         try:
             cursor.execute("""
                 SELECT t.*, e.backend_id as employee_backend_id, e.name as employee_name,
-                       e.employee_code as employee_code
+                       e.employee_code as employee_code, d.branch_id as branch_id
                 FROM timesheet t
                 JOIN employee e ON t.employee_id = e.id
+                LEFT JOIN device d ON t.device_id = d.id
                 WHERE t.backend_timesheet_id IS NULL
                 AND t.status = 'success'
                 ORDER BY t.created_at ASC
@@ -744,15 +752,15 @@ class Database:
         finally:
             conn.close()
 
-    def add_device(self, name, ip, port=4370, comm_key=0):
+    def add_device(self, name, ip, port=4370, comm_key=0, branch_id=None):
         """Add a new device"""
         conn = self.get_connection()
         cursor = conn.cursor()
         try:
             cursor.execute("""
-                INSERT INTO device (name, ip, port, comm_key, enabled)
-                VALUES (?, ?, ?, ?, 1)
-            """, (name, ip, port, comm_key or 0))
+                INSERT INTO device (name, ip, port, comm_key, branch_id, enabled)
+                VALUES (?, ?, ?, ?, ?, 1)
+            """, (name, ip, port, comm_key or 0, branch_id or None))
             conn.commit()
             return cursor.lastrowid
         except sqlite3.IntegrityError as e:
@@ -767,7 +775,7 @@ class Database:
         finally:
             conn.close()
 
-    def update_device(self, device_id, name=None, ip=None, port=None, comm_key=None, enabled=None):
+    def update_device(self, device_id, name=None, ip=None, port=None, comm_key=None, branch_id=None, enabled=None):
         """Update device configuration"""
         conn = self.get_connection()
         cursor = conn.cursor()
@@ -786,6 +794,9 @@ class Database:
             if comm_key is not None:
                 updates.append("comm_key = ?")
                 values.append(comm_key)
+            if branch_id is not None:
+                updates.append("branch_id = ?")
+                values.append(branch_id if branch_id else None)
             if enabled is not None:
                 updates.append("enabled = ?")
                 values.append(1 if enabled else 0)

@@ -192,6 +192,11 @@ class PushService:
                     "date": timesheet['date']  # YYYY-MM-DD format
                 }
 
+                # Include branch_id if available (from device configuration)
+                branch_id = timesheet.get('branch_id')
+                if branch_id:
+                    log_entry["branch_id"] = branch_id
+
                 all_log_entries.append(log_entry)
                 timesheet_map[timesheet['id']] = timesheet
 
